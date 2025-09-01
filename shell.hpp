@@ -3,9 +3,9 @@
 
 // includes
 
+#include <algorithm>
 #include "event/event.hpp"
 #include <fstream>
-#include "heap/heap.hpp"
 #include <iomanip>
 #include <iostream>
 #include "json.hpp"
@@ -23,6 +23,7 @@ using std::fstream;
 using std::ostream;
 using std::string;
 using std::queue;
+using std::vector;
 
 
 // prototypes
@@ -31,7 +32,7 @@ using std::queue;
 // requires: a heap
 // returns: nothing, but prints to the console
 template <typename adt>
-void printHeap(Heap<adt>&);
+void printHeap(vector<adt>&);
 
 
     /*********\
@@ -70,7 +71,7 @@ public:
     //          through, sets the shell running, and prints the command line
     // requires: the file name, and a heap
     // returns: nothing
-    Shell(const string, Heap<Event>&);
+    Shell(const string, vector<Event>&);
 
     // purpose: opens the json file, dynamically allocates the heap with the
     //          event passed through, sets the shell running, and prints the
@@ -104,13 +105,17 @@ private:
     bool is_running;
     bool ownsHeap;
     fstream jsonFile;
-    Heap<Event>* toDoList;
+    vector<Event> toDoList;
     json jsonData;
 
     // purpose: adds an event to the list
     // requires: an event
     // returns: nothing
-    void addEvent(const Event& myEvent) { toDoList->toss(myEvent); }
+    void addEvent(const Event& myEvent)
+    {
+        toDoList.push_back(myEvent);
+        push_heap(toDoList.begin(), toDoList.end());
+    }
 
     // purpose: prints an error to the user saying the shell doesn't understand
     // requires: a string
@@ -205,8 +210,10 @@ Shell::Shell() : ownsHeap(true)
         jsonData["to do list"] = json::array(); // Ensure it's an array
     }
 
+    /*
     // initialize the heap
-    toDoList = new Heap<Event>();
+    toDoList = new vector<Event>();
+    */
 
     // toss the json values onto the heap
     JSON2heap();
@@ -245,8 +252,10 @@ Shell::Shell(string fileName) : ownsHeap(true)
         jsonData["to do list"] = json::array(); // Ensure it's an array
     }
 
+    /*
     // initialize the heap
-    toDoList = new Heap<Event>();
+    toDoList = new vector<Event>();
+    */
 
     // write the json data to the heap
     JSON2heap();
@@ -261,7 +270,7 @@ Shell::Shell(string fileName) : ownsHeap(true)
 // parametrized constructor
 // cowritten by DeepSeek
 // takes in a file name and a heap
-Shell::Shell(string fileName, Heap<Event>& myHeap) : ownsHeap(false)
+Shell::Shell(string fileName, vector<Event>& myHeap) : ownsHeap(false)
 {
     // open the file
     jsonFile.open(fileName, std::ios::in | std::ios::out);
@@ -286,7 +295,7 @@ Shell::Shell(string fileName, Heap<Event>& myHeap) : ownsHeap(false)
     }
 
     // set the to do list to the heap passed through
-    toDoList = &myHeap;
+    toDoList = myHeap;
 
     // toss all the events already in the json file to the heap
     // since the heap has duplicate checking, this is fine
@@ -320,7 +329,7 @@ Shell::Shell(string fileName, const Event& myEvent) : ownsHeap(true)
 
     jsonData = json::parse(jsonFile);
 
-    toDoList = new Heap<Event>(myEvent);
+    toDoList.push_back(myEvent);
 
     printCommands();
 }
@@ -329,8 +338,8 @@ Shell::Shell(string fileName, const Event& myEvent) : ownsHeap(true)
 Shell::~Shell()
 {
     jsonFile.close();
-    if(ownsHeap)
-        delete toDoList;
+    if (ownsHeap)
+        toDoList.erase(toDoList.begin(), toDoList.end());
 }
 
 
@@ -384,7 +393,8 @@ void Shell::runCommand(vector<string> cmd_line)
                 Event* nEvent = makeEvent();
 
                 // add it to the heap
-                toDoList->toss(*nEvent);
+                toDoList.push_back(*nEvent);
+                make_heap(toDoList.begin(), toDoList.end());
 
                 // write it to the json file
                 write2JSON(*nEvent);
@@ -405,12 +415,13 @@ void Shell::runCommand(vector<string> cmd_line)
             // look at the whole list
             if (keyword == "list")
             {
-                printHeap(*toDoList);
+                for (auto &i : toDoList)
+                    cout << i << '\n';
             }
             // or just the top
             else if (keyword == "top")
             {
-                cout << toDoList->top();
+                cout << toDoList[0];
             }
             // or let the user pick an event
             else if (keyword == "event")
@@ -422,19 +433,20 @@ void Shell::runCommand(vector<string> cmd_line)
                 {
                     index = stoi(keyword);
 
-                    cout << toDoList->getIndex(index);
+                    cout << toDoList[index];
                 }
                 catch (const std::invalid_argument& e)
                 {
                     index = findJSONEvent(keyword);
 
+                    cout << e.what() << '\n';
                     if (index == -1)
                     {
                         cout << "Event not found" << endl;
                     }
                     else
                     {
-                        cout << toDoList->getIndex(index);
+                        cout << toDoList[index];
                     }
                 }
                 catch (const std::exception& e)
@@ -457,7 +469,8 @@ void Shell::runCommand(vector<string> cmd_line)
 
             if (keyword == "top")
             {
-                Event topEvent = toDoList->pop();
+                Event topEvent = toDoList[0];
+                pop_heap(toDoList.begin(), toDoList.end());
 
                 removeEventFromJSON(topEvent);
             }
@@ -497,9 +510,9 @@ void Shell::errorNote(string keyword)
 // write every event of the heap to the json file
 void Shell::heap2JSON()
 {
-    for (int i = 0; i < toDoList->getSize(); i++)
+    for (size_t i = 0; i < toDoList.size(); i++)
     {
-        write2JSON(toDoList->getIndex(i));
+        write2JSON(toDoList[i]);
     }
 
 }
@@ -508,7 +521,7 @@ void Shell::heap2JSON()
 int Shell::findJSONEvent(string keyword = "")
 {
     char firstChar = keyword[0];
-    int choice = 0;
+    size_t choice = 0;
     string title;
     vector<int> indices;
 
@@ -519,10 +532,10 @@ int Shell::findJSONEvent(string keyword = "")
         getline(cin, title);
 
         // go through the to do list
-        for (int i = 0; i < toDoList->getSize(); i++)
+        for (size_t i = 0; i < toDoList.size(); i++)
         {
             // mark every event that has the same name as the title
-            if (toDoList->getIndex(i).get_name() == title)
+            if (toDoList[i].get_name() == title)
             {
                 indices.push_back(i);
             }
@@ -542,11 +555,11 @@ int Shell::findJSONEvent(string keyword = "")
             do
             {
                 // list every event with the same name
-                for (int i = 0; i < indices.size(); ++i)
+                for (size_t i = 0; i < indices.size(); ++i)
                 {
                     cout << i + 1 << "\n";
-                    cout << toDoList->getIndex(indices[i]).get_name() << "\n\t";
-                    cout << toDoList->getIndex(indices[i]).get_description();
+                    cout << toDoList[indices[i]].get_name() << "\n\t";
+                    cout << toDoList[indices[i]].get_description();
                     cout << "\n";
                 }
 
@@ -578,7 +591,7 @@ int Shell::findJSONEvent(string keyword = "")
 // pushes all the json data onto the heap
 void Shell::JSON2heap()
 {
-    for (auto i : jsonData["to do list"])
+    for (auto &i : jsonData["to do list"])
     {
         Event* temp;
 
@@ -593,9 +606,10 @@ void Shell::JSON2heap()
             static_cast<double>( i["bias"] ), i["description"]);
 
         // toss the event on the to do list
-        toDoList->toss(*temp);
+        toDoList.push_back(*temp);
+        
     }
-
+    push_heap(toDoList.begin(), toDoList.end());
 }
 
 // prompts the user for event info and returns such an event
@@ -649,7 +663,7 @@ vector<string> Shell::parseCommand(string& command, char del = ' ') const
     command += del;
 
     // iterate through every char of command
-    for (auto i : command)
+    for (auto &i : command)
     {
         // if we're at the delimiter
         if (i == del)
@@ -751,7 +765,7 @@ void Shell::write2JSON(const Event& event)
 
 // print every value from the heap
 template <typename adt>
-void printHeap(Heap<adt>& heap)
+void printHeap(vector<adt>& heap)
 {
     int heapSize = heap.getSize();
     queue<adt> tempq;

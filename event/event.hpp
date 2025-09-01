@@ -395,7 +395,7 @@ void readEventInfo(string& title, int& year, TimePoint::Months& month, int& day,
     getline(cin, time);
 
     int element = 0;
-    for (int i = 0; i < time.size(); i++)
+    for (size_t i = 0; i < time.size(); i++)
     {
         if (time[i] == ' ' || time[i] == '/')
         {
