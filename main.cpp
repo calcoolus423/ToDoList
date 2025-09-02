@@ -11,7 +11,6 @@
 
 #include "event/event.hpp"
 #include <fstream>
-#include "heap/heap.hpp"
 #include "json.hpp"
 #include <iomanip>
 #include <iostream>
@@ -37,7 +36,7 @@ int main()
 {
     //ifstream jsonFile;
     //json jsonData;
-    Heap<Event> myHeap;
+    vector<Event> myHeap;
     Shell daShell("to_do_list.json", myHeap);
     vector<string> cmds;
 
